@@ -1,0 +1,14 @@
+linters:
+  enable:
+    - golint
+    - errcheck
+    - staticcheck
+    - unused
+    - gocyclo
+    - gofmt
+    - gosec
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      text: "ignore test files"
