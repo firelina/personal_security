@@ -9,8 +9,8 @@ repository для доступа к бд
 были обновлены тесты 
 был сформирован dockerfile
 Примеры работы
-![login.PNG](personal_security\login.PNG)
-![create_contact.PNG](personal_security\create_contact.PNG)
-![create_event.PNG](personal_security\create_event.PNG)
-![create_reminder.PNG](personal_security\create_reminder.PNG)
-![send_remind.PNG](personal_security\send_remind.PNG)
+![login.PNG](login.PNG)
+![create_contact.PNG](create_contact.PNG)
+![create_event.PNG](create_event.PNG)
+![create_reminder.PNG](create_reminder.PNG)
+![send_remind.PNG](send_remind.PNG)
