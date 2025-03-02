@@ -6,6 +6,8 @@ router на фреймворке gin go для реализации api
 handlers принимает для обработки входящих данных
 usecase для реализации логики
 repository для доступа к бд
+были обновлены тесты 
+был сформирован dockerfile
 Примеры работы
 ![login.PNG](..%2F..%2F..%2F..%2FHSE%2F%EF%E8%F2%EE%ED%2Flogin.PNG)
 ![create_contact.PNG](..%2F..%2F..%2F..%2FHSE%2F%EF%E8%F2%EE%ED%2Fcreate_contact.PNG)
