@@ -1,30 +1,51 @@
 package usecase
 
 import (
-	"errors"
+	"context"
 	"personal_security/internal/domain"
+	"personal_security/internal/repository"
 )
 
-type User struct {
+type UserService struct {
+	repo repository.UserRepositoryInterface
 }
 
-func NewUser() *User {
-	return &User{}
+func NewUserService(repo repository.UserRepositoryInterface) *UserService {
+	return &UserService{repo: repo}
 }
 
-var users []*domain.User
+func (u *UserService) RegisterUser(ctx context.Context, newUser *domain.User) (int, error) {
+	resultChan := make(chan struct {
+		ID  int
+		Err error
+	})
 
-func (u *User) RegisterUser(newUser *domain.User) int {
-	newUser.ID = len(users) + 1
-	users = append(users, newUser)
-	return newUser.ID
+	go func() {
+		userID, err := u.repo.RegisterUser(ctx, newUser)
+		resultChan <- struct {
+			ID  int
+			Err error
+		}{ID: userID, Err: err}
+	}()
+
+	result := <-resultChan
+	return result.ID, result.Err
 }
 
-func (u *User) LoginUser(loginUser *domain.User) (*domain.User, error) {
-	for _, user := range users {
-		if user.Email == loginUser.Email && user.Password == loginUser.Password {
-			return user, nil
-		}
-	}
-	return nil, errors.New("no user found")
+func (u *UserService) LoginUser(ctx context.Context, loginUser *domain.User) (*domain.User, error) {
+	resultChan := make(chan struct {
+		User *domain.User
+		Err  error
+	})
+
+	go func() {
+		user, err := u.repo.LoginUser(ctx, loginUser)
+		resultChan <- struct {
+			User *domain.User
+			Err  error
+		}{User: user, Err: err}
+	}()
+
+	result := <-resultChan
+	return result.User, result.Err
 }

@@ -1,52 +1,79 @@
 package usecase
 
 import (
-	"github.com/stretchr/testify/assert"
+	"context"
+	"errors"
 	"personal_security/internal/domain"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
+type MockUserRepository struct {
+	mock.Mock
+}
+
+func (m *MockUserRepository) RegisterUser(ctx context.Context, newUser *domain.User) (int, error) {
+	args := m.Called(ctx, newUser)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockUserRepository) LoginUser(ctx context.Context, loginUser *domain.User) (*domain.User, error) {
+	args := m.Called(ctx, loginUser)
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+
 func TestRegisterUser(t *testing.T) {
-	controller := NewUser()
+	mockRepo := new(MockUserRepository)
+	userService := NewUserService(mockRepo)
+	t.Run("success register user", func(t *testing.T) {
+		newUser := &domain.User{Name: "John Doe", Email: "john@example.com", Password: "password123"}
 
-	newUser := &domain.User{
-		Name:     "Иван Иванов",
-		Email:    "ivan@example.com",
-		Password: "securepassword123",
-	}
+		mockRepo.On("RegisterUser", mock.Anything, newUser).Return(1, nil)
 
-	userID := controller.RegisterUser(newUser)
+		userID, err := userService.RegisterUser(context.Background(), newUser)
 
-	assert.Equal(t, userID, 1)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, userID)
 
-	assert.Equal(t, len(users), 1)
+		mockRepo.AssertExpectations(t)
+	})
+
 }
 
 func TestLoginUser(t *testing.T) {
-	controller := NewUser()
+	mockRepo := new(MockUserRepository)
+	userService := NewUserService(mockRepo)
 
-	testUser := &domain.User{
-		Name:     "Иван Иванов",
-		Email:    "ivan@example.com",
-		Password: "securepassword123",
-	}
-	controller.RegisterUser(testUser)
+	t.Run("success login user", func(t *testing.T) {
+		loginUser := &domain.User{Email: "john@example.com", Password: "password123"}
+		expectedUser := &domain.User{ID: 1, Name: "John Doe", Email: "john@example.com"}
 
-	loginUser := &domain.User{
-		Email:    "ivan@example.com",
-		Password: "securepassword123",
-	}
+		mockRepo.On("LoginUser", mock.Anything, loginUser).Return(expectedUser, nil)
 
-	loggedInUser, err := controller.LoginUser(loginUser)
+		user, err := userService.LoginUser(context.Background(), loginUser)
 
-	assert.Nil(t, err)
-	assert.Equal(t, loggedInUser.Email, loginUser.Email)
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, expectedUser.ID, user.ID)
+		assert.Equal(t, expectedUser.Email, user.Email)
 
-	invalidUser := &domain.User{
-		Email:    "ivan@example.com",
-		Password: "wrongpassword",
-	}
-	_, err = controller.LoginUser(invalidUser)
+		mockRepo.AssertExpectations(t)
+	})
 
-	assert.NotNil(t, err)
+	t.Run("fail login user not found error", func(t *testing.T) {
+		loginUser := &domain.User{Email: "nonexistent@example.com", Password: "wrongpassword"}
+
+		mockRepo.On("LoginUser", mock.Anything, loginUser).Return(&domain.User{ID: 0,
+			Name: "", Email: "", Password: ""}, errors.New("no user found"))
+
+		user, err := userService.LoginUser(context.Background(), loginUser)
+
+		assert.Error(t, err)
+		assert.Equal(t, user, &domain.User{ID: 0, Name: "", Email: "", Password: ""})
+		assert.Equal(t, "no user found", err.Error())
+
+		mockRepo.AssertExpectations(t)
+	})
 }

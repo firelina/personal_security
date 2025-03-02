@@ -1,13 +1,11 @@
-package domain
+package models
 
 import "time"
 
-type Event struct {
-	ID          int       `json:"id"`
+type CreateEventRequest struct {
 	UserID      int       `json:"user_id"`
 	Title       string    `json:"title"`
 	Date        time.Time `json:"date"`
 	Description string    `json:"description"`
 	Status      string    `json:"status"`
-	Reminders   []Reminder
 }

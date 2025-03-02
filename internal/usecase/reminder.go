@@ -1,34 +1,78 @@
 package usecase
 
 import (
-	"errors"
+	"context"
+	"fmt"
 	"log"
 	"personal_security/internal/domain"
+	"personal_security/internal/repository"
 	"time"
 )
 
-type Reminder struct {
+type ReminderService struct {
+	repo         repository.ReminderRepositoryInterface
+	eventService EventServiceInterface
 }
 
-var reminders []*domain.Reminder
-
-func (r *Reminder) CreateReminder(newReminder *domain.Reminder) int {
-	newReminder.ID = len(contacts) + 1
-	reminders = append(reminders, newReminder)
-	return newReminder.ID
+func NewReminderService(repo repository.ReminderRepositoryInterface, eventService EventServiceInterface) *ReminderService {
+	return &ReminderService{
+		repo:         repo,
+		eventService: eventService,
+	}
 }
 
-func (r *Reminder) GetReminders() []*domain.Reminder {
-	return reminders
+func (s *ReminderService) CreateReminder(ctx context.Context, newReminder *domain.Reminder) (int, error) {
+	resultChan := make(chan struct {
+		ID  int
+		Err error
+	})
+
+	go func() {
+		userID, err := s.repo.CreateReminder(ctx, newReminder)
+		resultChan <- struct {
+			ID  int
+			Err error
+		}{ID: userID, Err: err}
+	}()
+
+	result := <-resultChan
+	return result.ID, result.Err
 }
 
-func (r *Reminder) SendReminders() error {
+func (s *ReminderService) GetReminders(ctx context.Context, eventID int) ([]*domain.Reminder, error) {
+	resultChan := make(chan struct {
+		Reminders []*domain.Reminder
+		Err       error
+	})
+
+	go func() {
+		reminders, err := s.repo.GetReminders(ctx, eventID)
+		resultChan <- struct {
+			Reminders []*domain.Reminder
+			Err       error
+		}{Reminders: reminders, Err: err}
+	}()
+
+	result := <-resultChan
+	return result.Reminders, result.Err
+}
+
+func (s *ReminderService) SendReminders(ctx context.Context, userID int) error {
+	events, err := s.eventService.GetEvents(ctx, userID)
+	if err != nil {
+		return err
+	}
+
 	currentTime := time.Now()
 
-	var upcomingReminders []domain.Reminder
+	var upcomingReminders []*domain.Reminder
 
 	for _, event := range events {
-		for _, reminder := range event.Reminders {
+		reminders, err := s.GetReminders(ctx, event.ID)
+		if err != nil {
+			return err
+		}
+		for _, reminder := range reminders {
 			if reminder.ReminderTime.After(currentTime) {
 				upcomingReminders = append(upcomingReminders, reminder)
 			}
@@ -36,7 +80,7 @@ func (r *Reminder) SendReminders() error {
 	}
 
 	if len(upcomingReminders) == 0 {
-		return errors.New("events happen before reminder time not found")
+		return fmt.Errorf("events happen before reminder time not found")
 	}
 
 	for _, reminder := range upcomingReminders {

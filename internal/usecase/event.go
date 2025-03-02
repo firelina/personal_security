@@ -1,33 +1,75 @@
 package usecase
 
 import (
-	"errors"
+	"context"
 	"personal_security/internal/domain"
-	"personal_security/internal/gateways/http/models"
+	"personal_security/internal/repository"
 )
 
-type Event struct {
+type EventServiceInterface interface {
+	CreateEvent(ctx context.Context, newEvent *domain.Event) (int, error)
+	GetEvents(ctx context.Context, userID int) ([]*domain.Event, error)
+	UpdateEventStatus(ctx context.Context, eventID int, status string) (*domain.Event, error)
 }
 
-var events []*domain.Event
-
-func (e *Event) CreateEvent(newEvent *domain.Event) int {
-	newEvent.ID = len(events) + 1
-	events = append(events, newEvent)
-	return newEvent.ID
+type EventService struct {
+	repo repository.EventRepositoryInterface
 }
 
-func (e *Event) GetEvents() []*domain.Event {
-	return events
+func NewEventService(repo repository.EventRepositoryInterface) *EventService {
+	return &EventService{repo: repo}
 }
 
-func (e *Event) UpdateEventStatus(updateRequest models.UpdateRequest) (*domain.Event, error) {
-	for i, event := range events {
-		if event.ID == updateRequest.EventID {
-			events[i].Status = updateRequest.Status
+func (s *EventService) CreateEvent(ctx context.Context, newEvent *domain.Event) (int, error) {
+	resultChan := make(chan struct {
+		ID  int
+		Err error
+	})
 
-			return events[i], nil
-		}
-	}
-	return nil, errors.New("event by id not found")
+	go func() {
+		userID, err := s.repo.CreateEvent(ctx, newEvent)
+		resultChan <- struct {
+			ID  int
+			Err error
+		}{ID: userID, Err: err}
+	}()
+
+	result := <-resultChan
+	return result.ID, result.Err
+}
+
+func (s *EventService) GetEvents(ctx context.Context, userID int) ([]*domain.Event, error) {
+	resultChan := make(chan struct {
+		Events []*domain.Event
+		Err    error
+	})
+
+	go func() {
+		events, err := s.repo.GetEvents(ctx, userID)
+		resultChan <- struct {
+			Events []*domain.Event
+			Err    error
+		}{Events: events, Err: err}
+	}()
+
+	result := <-resultChan
+	return result.Events, result.Err
+}
+
+func (s *EventService) UpdateEventStatus(ctx context.Context, eventID int, status string) (*domain.Event, error) {
+	resultChan := make(chan struct {
+		Event *domain.Event
+		Err   error
+	})
+
+	go func() {
+		event, err := s.repo.UpdateEventStatus(ctx, eventID, status)
+		resultChan <- struct {
+			Event *domain.Event
+			Err   error
+		}{Event: event, Err: err}
+	}()
+
+	result := <-resultChan
+	return result.Event, result.Err
 }

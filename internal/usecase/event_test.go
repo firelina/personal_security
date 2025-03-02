@@ -1,69 +1,102 @@
 package usecase
 
 import (
+	"context"
+	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"personal_security/internal/domain"
-	"personal_security/internal/gateways/http/models"
 	"testing"
 	"time"
 )
 
+type MockEventRepository struct {
+	mock.Mock
+}
+
+func (m *MockEventRepository) CreateEvent(ctx context.Context, newEvent *domain.Event) (int, error) {
+	args := m.Called(ctx, newEvent)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockEventRepository) GetEvents(ctx context.Context, userID int) ([]*domain.Event, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).([]*domain.Event), args.Error(1)
+}
+
+func (m *MockEventRepository) UpdateEventStatus(ctx context.Context, eventID int, status string) (*domain.Event, error) {
+	args := m.Called(ctx, eventID, status)
+	return args.Get(0).(*domain.Event), args.Error(1)
+}
+
 func TestCreateEvent(t *testing.T) {
-	eventManager := &Event{}
+	mockRepo := new(MockEventRepository)
+	eventService := NewEventService(mockRepo)
+	t.Run("success create event", func(t *testing.T) {
+		newEvent := &domain.Event{UserID: 1, Title: "New Event", Date: time.Now(), Description: "This is a new event", Status: "pending"}
 
-	newEvent := &domain.Event{
-		Title:       "Встреча с клиентом",
-		Date:        time.Now(),
-		Description: "Обсуждение условий контракта",
-		Status:      "запланировано",
-	}
+		mockRepo.On("CreateEvent", mock.Anything, newEvent).Return(1, nil)
 
-	eventID := eventManager.CreateEvent(newEvent)
+		eventID, err := eventService.CreateEvent(context.Background(), newEvent)
 
-	assert.Equal(t, 1, eventID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, eventID)
 
-	assert.Equal(t, 1, len(events))
+		mockRepo.AssertExpectations(t)
+	})
+
 }
 
 func TestGetEvents(t *testing.T) {
-	eventManager := &Event{}
+	mockRepo := new(MockEventRepository)
+	eventService := NewEventService(mockRepo)
+	t.Run("success get events", func(t *testing.T) {
+		userID := 1
+		expectedEvents := []*domain.Event{
+			{ID: 1, UserID: userID, Title: "Event 1", Date: time.Now(), Description: "This is event 1", Status: "pending"},
+			{ID: 2, UserID: userID, Title: "Event 2", Date: time.Now(), Description: "This is event 2", Status: "pending"},
+		}
 
-	eventManager.CreateEvent(&domain.Event{
-		Title:       "Встреча с клиентом",
-		Date:        time.Now(),
-		Description: "Обсуждение условий контракта",
-		Status:      "запланировано",
+		mockRepo.On("GetEvents", mock.Anything, userID).Return(expectedEvents, nil)
+
+		events, err := eventService.GetEvents(context.Background(), userID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedEvents, events)
+
+		mockRepo.AssertExpectations(t)
 	})
-
-	eventsList := eventManager.GetEvents()
-
-	assert.Equal(t, 2, len(eventsList))
-	assert.Equal(t, "Встреча с клиентом", eventsList[0].Title)
 }
 
 func TestUpdateEventStatus(t *testing.T) {
-	eventManager := &Event{}
+	mockRepo := new(MockEventRepository)
+	eventService := NewEventService(mockRepo)
+	t.Run("success update status", func(t *testing.T) {
+		eventID := 1
+		status := "sent"
+		expectedEvent := &domain.Event{ID: eventID, UserID: 1, Title: "Event 1", Date: time.Now(), Description: "This is event 1", Status: status}
 
-	eventID := eventManager.CreateEvent(&domain.Event{
-		Title:       "Встреча с клиентом",
-		Date:        time.Now(),
-		Description: "Обсуждение условий контракта",
-		Status:      "запланировано",
+		mockRepo.On("UpdateEventStatus", mock.Anything, eventID, status).Return(expectedEvent, nil)
+
+		event, err := eventService.UpdateEventStatus(context.Background(), eventID, status)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedEvent, event)
+
+		mockRepo.AssertExpectations(t)
 	})
+	t.Run("fail event update no found error", func(t *testing.T) {
+		eventID := 1
+		status := "approved"
 
-	updateRequest := models.UpdateRequest{
-		EventID: eventID,
-		Status:  "завершено",
-	}
+		mockRepo.On("UpdateEventStatus", mock.Anything, eventID, status).Return(&domain.Event{}, errors.New("event not found"))
 
-	updatedEvent, err := eventManager.UpdateEventStatus(updateRequest)
+		event, err := eventService.UpdateEventStatus(context.Background(), eventID, status)
 
-	assert.Nil(t, err)
-	assert.Equal(t, "завершено", updatedEvent.Status)
+		assert.Error(t, err)
+		assert.Equal(t, event, &domain.Event{})
+		assert.Equal(t, "event not found", err.Error())
 
-	// Проверка на обновление несуществующего события
-	updateRequest.EventID = 4
-	_, err = eventManager.UpdateEventStatus(updateRequest)
-
-	assert.NotNil(t, err)
+		mockRepo.AssertExpectations(t)
+	})
 }

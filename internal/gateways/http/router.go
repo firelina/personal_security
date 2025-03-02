@@ -34,15 +34,15 @@ func setupRouter(r *gin.Engine, useCases UseCases) {
 		reminderHandlers.CreateReminder(c)
 	})
 
-	r.GET("/events", func(c *gin.Context) {
+	r.GET("/events/:user_id", func(c *gin.Context) {
 		eventHandler.GetEvents(c)
 	})
 
-	r.GET("/contacts", func(c *gin.Context) {
+	r.GET("/contacts/:user_id", func(c *gin.Context) {
 		contactHandler.GetContacts(c)
 	})
 
-	r.GET("/reminders", func(c *gin.Context) {
+	r.GET("/reminders/:event_id", func(c *gin.Context) {
 		reminderHandlers.GetReminders(c)
 	})
 
@@ -50,7 +50,7 @@ func setupRouter(r *gin.Engine, useCases UseCases) {
 		eventHandler.UpdateEventStatus(c)
 	})
 
-	r.POST("/reminders/remind", func(c *gin.Context) {
+	r.POST("/reminders/remind/:user_id", func(c *gin.Context) {
 		reminderHandlers.SendReminders(c)
 	})
 }

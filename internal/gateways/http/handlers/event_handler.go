@@ -6,31 +6,57 @@ import (
 	"personal_security/internal/domain"
 	"personal_security/internal/gateways/http/models"
 	"personal_security/internal/usecase"
+	"strconv"
 )
 
 type EventHandler struct {
-	eventUsecase *usecase.Event
+	eventUsecase *usecase.EventService
 }
 
-func NewEventHandler(u *usecase.Event) *EventHandler {
+func NewEventHandler(u *usecase.EventService) *EventHandler {
 	return &EventHandler{u}
 }
 
 func (h *EventHandler) CreateEvent(c *gin.Context) {
-	var newEvent domain.Event
+	var newEvent models.CreateEventRequest
 	if err := c.ShouldBindJSON(&newEvent); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	eventID := h.eventUsecase.CreateEvent(&newEvent)
+	ctx := c.Request.Context()
+	eventID, err := h.eventUsecase.CreateEvent(ctx, &domain.Event{
+		UserID:      newEvent.UserID,
+		Title:       newEvent.Title,
+		Date:        newEvent.Date,
+		Description: newEvent.Description,
+		Status:      newEvent.Status,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+	}
 	c.JSON(http.StatusCreated, eventID)
 }
 
 func (h *EventHandler) GetEvents(c *gin.Context) {
-	c.JSON(http.StatusOK, h.eventUsecase.GetEvents())
+	userID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	ctx := c.Request.Context()
+	events, err := h.eventUsecase.GetEvents(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err)
+	}
+	c.JSON(http.StatusOK, models.NewEventResponse(events))
 }
 
 func (h *EventHandler) UpdateEventStatus(c *gin.Context) {
+	eventID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
 	var updateRequest models.UpdateRequest
 
 	if err := c.ShouldBindJSON(&updateRequest); err != nil {
@@ -38,12 +64,14 @@ func (h *EventHandler) UpdateEventStatus(c *gin.Context) {
 		return
 	}
 
-	event, err := h.eventUsecase.UpdateEventStatus(updateRequest)
+	ctx := c.Request.Context()
+
+	event, err := h.eventUsecase.UpdateEventStatus(ctx, eventID, updateRequest.Status)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Событие не найдено"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Статус события обновлен", "event": event})
+	c.JSON(http.StatusOK, gin.H{"message": "Статус события обновлен", "event": models.NewEventResponseItem(event)})
 
 }

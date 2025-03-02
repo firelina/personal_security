@@ -19,10 +19,10 @@ func (s *Server) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 }
 
 type UseCases struct {
-	User     *usecase.User
-	Event    *usecase.Event
-	Contact  *usecase.Contact
-	Reminder *usecase.Reminder
+	User     *usecase.UserService
+	Event    *usecase.EventService
+	Contact  *usecase.ContactService
+	Reminder *usecase.ReminderService
 }
 
 func NewServer(useCases UseCases, options ...func(*Server)) *Server {
